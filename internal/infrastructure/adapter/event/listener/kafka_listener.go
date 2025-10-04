@@ -30,7 +30,7 @@ type UserPayload struct {
 	Deleted   bool   `json:"deleted,omitempty"`
 }
 
-func StartKafkaListener(svc *service.PortabilityService, brokers []string, topic, group, client string) {
+func StartKafkaListener(svc *service.PortabilityService, brokers []string, topic, group, client string) error {
 	reader := kafka.NewReader(kafka.ReaderConfig{
 		Brokers: brokers,
 		Topic:   topic,
@@ -47,7 +47,7 @@ func StartKafkaListener(svc *service.PortabilityService, brokers []string, topic
 		msg, err := reader.ReadMessage(context.Background())
 		if err != nil {
 			log.Println("Kafka error:", err)
-			continue
+			return err
 		}
 
 		var event CustomerEvent
@@ -73,21 +73,21 @@ func StartKafkaListener(svc *service.PortabilityService, brokers []string, topic
 			})
 			if err != nil {
 				log.Println("Error creating customer:", err)
-				return
+				return err
 			}
 		case "Customer.Updated":
 			if payload.Deleted || payload.Suspended {
 				err := svc.UpdateStatus(context.Background(), payload.UserID, "Cancelled")
 				if err != nil {
 					log.Println("Error updating customer status:", err)
-					return
+					return err
 				}
 			}
 		case "Customer.Deleted":
 			err := svc.Delete(context.Background(), payload.UserID)
 			if err != nil {
 				log.Println("Error deleting customer:", err)
-				return
+				return err
 			}
 		}
 	}
