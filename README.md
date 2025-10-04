@@ -34,3 +34,28 @@ flowchart LR
     TOPIC --> CONSUMER
     REST --> DB
     CONSUMER --> DB
+```
+
+## API
+
+````http request
+### Crear una portabilidad
+POST  http://localhost:8080/portability HTTP/1.1
+content-type: application/json
+{
+  "userId": "100001",
+  "currentOperator": "OperatorA",
+  "requestedOperator": "OperatorB",
+  "status": "Requested",
+  "details": {
+    "number": "3001234567",
+    "region": "Bogota",
+    "plan_type": "Postpaid",
+    "authorization_code": "AUTH123"
+  }
+}
+
+### Consultar portabilidades
+GET http://localhost:8080/portability HTTP/1.1
+###
+````
