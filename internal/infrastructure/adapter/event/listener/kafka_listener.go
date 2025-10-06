@@ -3,10 +3,11 @@ package listener
 import (
 	"context"
 	"encoding/json"
-	"github.com/segmentio/kafka-go"
 	"log"
 	"strconv"
 	"time"
+
+	"github.com/segmentio/kafka-go"
 
 	"telecomx-portability-service/internal/application/service"
 	"telecomx-portability-service/internal/domain/model"
@@ -30,6 +31,22 @@ type UserPayload struct {
 	Deleted   bool   `json:"deleted,omitempty"`
 }
 
+// AltCustomerEvent supports incoming messages that use keys: "event" and "data"
+type AltCustomerEvent struct {
+    Event string          `json:"event"`
+    Data  json.RawMessage `json:"data"`
+}
+
+// toJSON returns a compact JSON representation of any value for logging.
+// Falls back to an error string if marshaling fails.
+func toJSON(v interface{}) string {
+    b, err := json.Marshal(v)
+    if err != nil {
+        return "<json_error: " + err.Error() + ">"
+    }
+    return string(b)
+}
+
 func StartKafkaListener(svc *service.PortabilityService, brokers []string, topic, group, client string) error {
 	reader := kafka.NewReader(kafka.ReaderConfig{
 		Brokers: brokers,
@@ -51,13 +68,33 @@ func StartKafkaListener(svc *service.PortabilityService, brokers []string, topic
 		}
 
 		var event CustomerEvent
-		if err := json.Unmarshal(msg.Value, &event); err != nil {
-			log.Println("Invalid event:", err)
-			continue
-		}
+        if err := json.Unmarshal(msg.Value, &event); err != nil {
+            // Try fallback shape {"event": "...", "data": {...}}
+            var alt AltCustomerEvent
+            if err2 := json.Unmarshal(msg.Value, &alt); err2 != nil {
+                log.Println("Invalid event (both shapes failed):", err, "|", err2)
+                continue
+            }
+            event.Type = alt.Event
+            event.Payload = alt.Data
+        } else if event.Type == "" && len(event.Payload) == 0 {
+            // Some producers may use different keys; attempt fallback even if first unmarshal succeeded but empty
+            var alt AltCustomerEvent
+            if err2 := json.Unmarshal(msg.Value, &alt); err2 == nil {
+                event.Type = alt.Event
+                event.Payload = alt.Data
+            }
+        }
+
+        // Log parsed event type and a trimmed payload preview
+        log.Printf("[Kafka] Parsed event type=%s payload_len=%d", event.Type, len(event.Payload))
+        // Log full event JSON for debugging
+        log.Printf("[Kafka] Event JSON=%s", toJSON(event))
 
 		var payload UserPayload
 		_ = json.Unmarshal(event.Payload, &payload)
+        // Log full payload JSON for debugging
+        log.Printf("[Kafka] Payload JSON=%s", toJSON(payload))
 
 		switch event.Type {
 		case "Customer.Created":
