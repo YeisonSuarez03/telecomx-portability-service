@@ -120,6 +120,18 @@ func StartKafkaListener(svc *service.PortabilityService, brokers []string, topic
 					return err
 				}
 			}
+		case "Customer.Suspended":
+			err := svc.UpdateStatus(context.Background(), payload.UserID, "Suspended")
+			if err != nil {
+				log.Println("Error updating customer status:", err)
+				return err
+			}
+		case "Customer.Reactivated":
+			err := svc.UpdateStatus(context.Background(), payload.UserID, "Active")
+			if err != nil {
+				log.Println("Error updating customer status:", err)
+				return err
+			}
 		case "Customer.Deleted":
 			err := svc.Delete(context.Background(), payload.UserID)
 			if err != nil {
